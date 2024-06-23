@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Camera Photo Statistics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      /* HTML: <div class="loader"></div> */
+      .loader {
+        width: calc(80px / cos(45deg));
+        height: 14px;
+        background: repeating-linear-gradient(-45deg, #000 0 15px, #0000 0 20px)
+          left/200% 100%;
+        animation: l3 2s infinite linear;
+      }
+      @keyframes l3 {
+        100% {
+          background-position: right;
+        }
+      }
+      .hide {
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>My Camera Photo Statistics count:(<span id="count"></span>)</h1>
+    <div class="">
+      <input
+        style="width: 300px; margin-bottom: 20px"
+        type="text"
+        id="folderInput"
+        placeholder="copy and paste your folder path"
+      />
+      <button id="gen_btn" onclick="use_data()">Generate</button>
+      <div id="loader" class="loader hide"></div>
+    </div>
+
+    <div>
+      <canvas id="fNumberChart"></canvas>
+    </div>
+
+    <div>
+      <canvas id="exposureTimeChart"></canvas>
+    </div>
+
+    <div>
+      <canvas id="lensFocalLengthChart"></canvas>
+    </div>
+
+    <script type="module">
+      let is_handle_data = false;
+
+      const fetch_data = async (path) => {
+        if (is_handle_data) {
+          return;
+        }
+
+        is_handle_data = true;
+        document.getElementById("gen_btn").disabled = true;
+        document.getElementById("loader").classList.remove("hide");
+        const data = await fetch(`./report`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ path }),
+        }).then((res) => res.json());
+        is_handle_data = false;
+        document.getElementById("gen_btn").disabled = false;
+        document.getElementById("loader").classList.add("hide");
+        return data;
+      };
+
+      const use_data = async () => {
+        const path = getFolderPath();
+        const all_json = await fetch_data(path);
+
+        const data = JSON.parse(all_json);
+        console.log(data);
+        document.getElementById("count").innerText = Object.values(
+          data["F number"]
+        ).reduce((p, c) => p + c, 0);
+
+        updateChart(data);
+        return data;
+      };
+
+      // Helper function to convert exposure time strings to numbers
+      function parseExposureTime(exposureTimeStr) {
+        const parts = exposureTimeStr.split("/");
+        if (parts.length === 2) {
+          return 1 / parseInt(parts[1], 10);
+        } else {
+          return parseFloat(exposureTimeStr);
+        }
+      }
+
+      // Create the charts
+      const fNumberChart = new Chart(document.getElementById("fNumberChart"), {
+        type: "bar",
+        data: {},
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+
+      const exposureTimeChart = new Chart(
+        document.getElementById("exposureTimeChart"),
+        {
+          type: "bar",
+          data: {},
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+          },
+        }
+      );
+
+      const lensFocalLengthChart = new Chart(
+        document.getElementById("lensFocalLengthChart"),
+        {
+          type: "bar",
+          data: {},
+          options: {
+            scales: {
+              y: {
+                beginAtZero: false,
+              },
+            },
+          },
+        }
+      );
+
+      function updateChart(data) {
+        const fNumberData = {
+          labels: Object.keys(data["F number"]).sort(
+            (a, b) => parseFloat(a) - parseFloat(b)
+          ),
+          datasets: [
+            {
+              label: "F-number Frequency",
+              data: Object.keys(data["F number"])
+                .sort((a, b) => parseFloat(a) - parseFloat(b))
+                .map((key) => data["F number"][key]),
+              backgroundColor: "rgba(54, 162, 235, 0.2)",
+              borderColor: "rgba(54, 162, 235, 1)",
+              borderWidth: 1,
+            },
+          ],
+        };
+        fNumberChart.data = fNumberData;
+        fNumberChart.update();
+
+        // Exposure time data
+        const exposureTimeData = {
+          labels: Object.keys(data["Exposure time"]).sort((a, b) => {
+            return parseExposureTime(b) - parseExposureTime(a);
+          }),
+          datasets: [
+            {
+              label: "Exposure Time Frequency",
+              data: Object.keys(data["Exposure time"])
+                .sort((a, b) => {
+                  return parseExposureTime(b) - parseExposureTime(a);
+                })
+                .map((key) => data["Exposure time"][key]),
+              backgroundColor: "rgba(255, 99, 132, 0.2)",
+              borderColor: "rgba(255, 99, 132, 1)",
+              borderWidth: 1,
+            },
+          ],
+        };
+        exposureTimeChart.data = exposureTimeData;
+        exposureTimeChart.update();
+
+        // Lens focal length data
+        const lensFocalLengthData = {
+          labels: Object.keys(data["Lens focal length"]).sort(
+            (a, b) => parseFloat(a) - parseFloat(b)
+          ),
+          datasets: [
+            {
+              label: "Lens Focal Length Frequency",
+              data: Object.keys(data["Lens focal length"])
+                .sort((a, b) => parseFloat(a) - parseFloat(b))
+                .map((key) => data["Lens focal length"][key]),
+              backgroundColor: "rgba(75, 192, 192, 0.2)",
+              borderColor: "rgba(75, 192, 192, 1)",
+              borderWidth: 1,
+            },
+          ],
+        };
+        lensFocalLengthChart.data = lensFocalLengthData;
+        lensFocalLengthChart.update();
+      }
+      function getFolderPath() {
+        var folderInput = document.getElementById("folderInput");
+        var folderPath = folderInput.value;
+        console.log("Selected file path: " + folderPath);
+        return folderPath;
+      }
+      window.use_data = use_data;
+    </script>
+  </body>
+</html>
